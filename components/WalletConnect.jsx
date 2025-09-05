@@ -1,54 +1,39 @@
 import React, { useState, useEffect } from 'react';
 
 function WalletConnect() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [address, setAddress] = useState('');
-  const [chainId, setChainId] = useState(null);
+  const { authenticated, user, login, logout, loading } = window.usePrivy();
+  const { currentUser } = window.useUser();
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // Simulate wallet connection (will be replaced with Privy)
-  const connectWallet = async () => {
+  const handleConnect = async () => {
+    if (isConnecting || loading) return;
+    
     setIsConnecting(true);
     try {
-      // Simulate connection delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Mock wallet data
-      setIsConnected(true);
-      setAddress('0x742d35Cc6634C0532925a3b8D09A80C1f34Dd4f1');
-      setChainId(8453); // Base chain ID
-      
-      localStorage.setItem('wallet_connected', 'true');
+      await login();
     } catch (error) {
       console.error('Connection failed:', error);
+      alert('Failed to connect wallet. Please try again.');
     } finally {
       setIsConnecting(false);
     }
   };
 
-  const disconnectWallet = () => {
-    setIsConnected(false);
-    setAddress('');
-    setChainId(null);
-    localStorage.removeItem('wallet_connected');
+  const handleDisconnect = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Disconnection failed:', error);
+    }
   };
 
-  // Check for existing connection
-  useEffect(() => {
-    const wasConnected = localStorage.getItem('wallet_connected');
-    if (wasConnected) {
-      setIsConnected(true);
-      setAddress('0x742d35Cc6634C0532925a3b8D09A80C1f34Dd4f1');
-      setChainId(8453);
-    }
-  }, []);
-
   const formatAddress = (addr) => {
+    if (!addr) return '';
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  const getChainName = (id) => {
-    switch (id) {
+  const getChainName = (chainId) => {
+    switch (chainId) {
       case 8453:
         return 'Base';
       case 1:
@@ -58,14 +43,14 @@ function WalletConnect() {
     }
   };
 
-  if (isConnected) {
+  if (authenticated && user) {
     return (
       <div className="glass-morphism rounded-2xl p-6 border-2 border-pink-400/30 dog-card">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="relative">
               <img 
-                src="assets/dog-avatar-gaming.webp" 
+                src={currentUser?.avatar_url || "assets/dog-avatar-gaming.webp"}
                 alt="Connected Wallet" 
                 className="w-14 h-14 rounded-full border-3 border-pink-400 animate-pulse-glow"
               />
@@ -75,17 +60,25 @@ function WalletConnect() {
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <p className="text-white font-bold">{formatAddress(address)}</p>
+                <p className="text-white font-bold">
+                  {currentUser?.username || formatAddress(user.wallet?.address)}
+                </p>
                 <span className="animate-bounce">🎮</span>
               </div>
               <p className="text-pink-400 text-sm font-medium flex items-center">
                 <span className="mr-1">⛓️</span>
-                {getChainName(chainId)} Network
+                {getChainName(user.wallet?.chainId)} Network
               </p>
+              {user.email?.address && (
+                <p className="text-gray-400 text-xs flex items-center">
+                  <span className="mr-1">📧</span>
+                  {user.email.address}
+                </p>
+              )}
             </div>
           </div>
           <button
-            onClick={disconnectWallet}
+            onClick={handleDisconnect}
             className="px-4 py-2 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition-all duration-300 transform hover:scale-105 border border-red-400/20"
           >
             <span className="mr-1">👋</span>
@@ -98,12 +91,12 @@ function WalletConnect() {
 
   return (
     <button
-      onClick={connectWallet}
-      disabled={isConnecting}
-      className="w-full glass-morphism rounded-2xl p-6 border-2 border-pink-400/30 hover:border-pink-400/60 transition-all duration-300 group dog-card transform hover:scale-105"
+      onClick={handleConnect}
+      disabled={isConnecting || loading}
+      className="w-full glass-morphism rounded-2xl p-6 border-2 border-pink-400/30 hover:border-pink-400/60 transition-all duration-300 group dog-card transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
     >
       <div className="flex items-center justify-center space-x-4">
-        {isConnecting ? (
+        {isConnecting || loading ? (
           <>
             <div className="relative">
               <div className="loading-spinner-cute"></div>
@@ -111,7 +104,9 @@ function WalletConnect() {
                 <span className="text-lg animate-spin">🐕</span>
               </div>
             </div>
-            <span className="text-gray-300 font-medium">Connecting...</span>
+            <span className="text-gray-300 font-medium">
+              {isConnecting ? 'Connecting...' : 'Loading...'}
+            </span>
           </>
         ) : (
           <>

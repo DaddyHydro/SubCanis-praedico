@@ -15,40 +15,19 @@
         "imports": {
           "react": "https://esm.sh/react@19.1.0",
           "react-dom/client": "https://esm.sh/react-dom@19.1.0/client",
-          "react-router": "https://esm.sh/react-router@7.5.2?deps=react@19.1.0,react-dom@19.1.0"
+          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
         }
       }
     </script>
-    <script
-      type="text/babel"
-      data-type="module"
-      src="components/PredictionMarket.jsx"
-    ></script>
-    <script
-      type="text/babel"
-      data-type="module"
-      src="components/TokenBalance.jsx"
-    ></script>
-    <script
-      type="text/babel"
-      data-type="module"
-      src="components/ActiveMarkets.jsx"
-    ></script>
-    <script
-      type="text/babel"
-      data-type="module"
-      src="components/MarketData.jsx"
-    ></script>
-    <script
-      type="text/babel"
-      data-type="module"
-      src="components/WalletConnect.jsx"
-    ></script>
-    <script
-      type="text/babel"
-      data-type="module"
-      src="pages/Home.jsx"
-    ></script>
+    <script type="text/babel" data-type="module" src="lib/supabase.js"></script>
+    <script type="text/babel" data-type="module" src="components/PrivyProvider.jsx"></script>
+    <script type="text/babel" data-type="module" src="hooks/useUser.js"></script>
+    <script type="text/babel" data-type="module" src="components/WalletConnect.jsx"></script>
+    <script type="text/babel" data-type="module" src="components/TokenBalance.jsx"></script>
+    <script type="text/babel" data-type="module" src="components/PredictionMarket.jsx"></script>
+    <script type="text/babel" data-type="module" src="components/ActiveMarkets.jsx"></script>
+    <script type="text/babel" data-type="module" src="components/MarketData.jsx"></script>
+    <script type="text/babel" data-type="module" src="pages/Home.jsx"></script>
     <script type="text/babel" data-type="module" src="app.jsx"></script>
   </head>
   <body>

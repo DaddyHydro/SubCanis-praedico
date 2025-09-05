@@ -1,52 +1,97 @@
 import React, { useState, useEffect } from 'react';
 
 function TokenBalance() {
-  const [balance, setBalance] = useState(0);
-  const [usdValue, setUsdValue] = useState(0);
+  const [balances, setBalances] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [buyAmount, setBuyAmount] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Mock UDOG token price (will be dynamic in production)
+  const { currentUser } = window.useUser();
+  const { balancesApi } = window.supabaseLib;
+
+  // Mock UDOG token price
   const udogPrice = 0.0234;
 
-  useEffect(() => {
-    // Simulate loading user balance
-    const loadBalance = async () => {
+  const fetchBalances = async () => {
+    if (!currentUser) return;
+
+    try {
       setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setError(null);
       
-      // Mock balance (will be fetched from blockchain)
-      const mockBalance = 15420.75;
-      setBalance(mockBalance);
-      setUsdValue(mockBalance * udogPrice);
+      const response = await balancesApi.getByUserId(currentUser.id);
+      
+      if (response.success) {
+        setBalances(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch balances:', err);
+      setError(err.message);
+    } finally {
       setIsLoading(false);
-    };
+    }
+  };
 
-    loadBalance();
-  }, []);
+  useEffect(() => {
+    if (currentUser) {
+      fetchBalances();
+    } else {
+      setBalances([]);
+      setIsLoading(false);
+    }
+  }, [currentUser]);
 
-  const handleBuyTokens = () => {
+  const handleBuyTokens = async () => {
     if (!buyAmount || isNaN(buyAmount) || buyAmount <= 0) {
       alert('Please enter a valid amount');
       return;
     }
 
-    // Simulate token purchase
-    const purchaseAmount = parseFloat(buyAmount);
-    const newBalance = balance + purchaseAmount;
-    setBalance(newBalance);
-    setUsdValue(newBalance * udogPrice);
-    setBuyAmount('');
-    setShowBuyModal(false);
-    
-    // Show confetti effect
-    setShowConfetti(true);
-    setTimeout(() => setShowConfetti(false), 3000);
-    
-    // Show success message
-    alert(`🎉 Successfully purchased ${purchaseAmount} $UDOG tokens! 🐕💰`);
+    if (!currentUser) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // Update USDC balance (simulate token purchase)
+      await balancesApi.update({
+        user_id: currentUser.id,
+        token_symbol: 'USDC',
+        amount: parseFloat(buyAmount),
+        operation: 'add'
+      });
+
+      // Refresh balances
+      await fetchBalances();
+
+      setBuyAmount('');
+      setShowBuyModal(false);
+      
+      // Show confetti effect
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+      
+      alert(`🎉 Successfully purchased ${buyAmount} $UDOG tokens! 🐕💰`);
+    } catch (err) {
+      console.error('Failed to buy tokens:', err);
+      alert('Failed to purchase tokens. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getBalance = (symbol) => {
+    const balance = balances.find(b => b.token_symbol === symbol);
+    return balance ? parseFloat(balance.balance) : 0;
+  };
+
+  const getTotalValue = () => {
+    const udogBalance = getBalance('USDC'); // Using USDC as UDOG for now
+    return udogBalance * udogPrice;
   };
 
   const formatBalance = (amount) => {
@@ -65,6 +110,20 @@ function TokenBalance() {
     }).format(amount);
   };
 
+  if (!currentUser) {
+    return (
+      <div className="glass-morphism rounded-2xl p-6 border-2 border-gray-600/30 opacity-50">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">🐕</span>
+          </div>
+          <h3 className="text-xl font-bold text-gray-400 mb-2">Connect Wallet</h3>
+          <p className="text-gray-500 text-sm">Connect your wallet to view your $UDOG balance</p>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="glass-morphism rounded-2xl p-6 animate-pulse border-2 border-yellow-400/30">
@@ -76,6 +135,26 @@ function TokenBalance() {
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="glass-morphism rounded-2xl p-6 border-2 border-red-500/30">
+        <div className="text-center">
+          <span className="text-2xl mb-2 block">⚠️</span>
+          <p className="text-red-400 mb-4">{error}</p>
+          <button
+            onClick={fetchBalances}
+            className="px-4 py-2 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const udogBalance = getBalance('USDC'); // Using USDC as UDOG
+  const usdValue = getTotalValue();
 
   return (
     <>
@@ -110,7 +189,8 @@ function TokenBalance() {
           </div>
           <button
             onClick={() => setShowBuyModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 rounded-full text-white font-bold hover:from-yellow-500 hover:to-pink-500 transition-all duration-300 transform hover:scale-110 shadow-lg border-2 border-white/20"
+            disabled={isLoading}
+            className="px-6 py-3 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 rounded-full text-white font-bold hover:from-yellow-500 hover:to-pink-500 transition-all duration-300 transform hover:scale-110 shadow-lg border-2 border-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="mr-2">🛒</span>
             Buy More
@@ -119,7 +199,7 @@ function TokenBalance() {
 
         <div className="space-y-3">
           <div className="text-4xl font-bold text-white animate-gradient bg-clip-text text-transparent">
-            {formatBalance(balance)} $UDOG
+            {formatBalance(udogBalance)} $UDOG
           </div>
           <div className="text-gray-300 flex items-center text-lg">
             <span className="mr-2">💵</span>
@@ -138,7 +218,7 @@ function TokenBalance() {
               Available for Trading:
             </span>
             <span className="text-green-400 font-bold flex items-center">
-              {formatBalance(balance)} $UDOG
+              {formatBalance(udogBalance)} $UDOG
               <span className="ml-1">🚀</span>
             </span>
           </div>
@@ -215,10 +295,11 @@ function TokenBalance() {
                 </button>
                 <button
                   onClick={handleBuyTokens}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-pink-500 to-yellow-500 rounded-full text-white font-bold hover:from-yellow-500 hover:to-pink-500 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                  disabled={isLoading}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-pink-500 to-yellow-500 rounded-full text-white font-bold hover:from-yellow-500 hover:to-pink-500 transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="mr-2">🎉</span>
-                  Buy Tokens
+                  {isLoading ? 'Buying...' : 'Buy Tokens'}
                 </button>
               </div>
             </div>

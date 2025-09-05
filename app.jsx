@@ -12,7 +12,10 @@ function App() {
         window.TokenBalance &&
         window.ActiveMarkets &&
         window.MarketData &&
-        window.WalletConnect
+        window.WalletConnect &&
+        window.PrivyProvider &&
+        window.UserProvider &&
+        window.supabaseLib
       ) {
         setIsReady(true);
       }
@@ -47,7 +50,15 @@ function App() {
     );
   }
 
-  return <window.Home />;
+  return React.createElement(
+    window.PrivyProvider,
+    {},
+    React.createElement(
+      window.UserProvider,
+      {},
+      React.createElement(window.Home)
+    )
+  );
 }
 
-createRoot(document.getElementById('renderDiv')).render(<App />);
+createRoot(document.getElementById('renderDiv')).render(React.createElement(App));

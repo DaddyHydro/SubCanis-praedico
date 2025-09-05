@@ -1,75 +1,51 @@
 import React, { useState, useEffect } from 'react';
 
 function ActiveMarkets() {
-  const [userBets, setUserBets] = useState([]);
+  const [userPositions, setUserPositions] = useState([]);
   const [selectedTab, setSelectedTab] = useState('active');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const { currentUser } = window.useUser();
+  const { positionsApi, transactionsApi } = window.supabaseLib;
+
+  const fetchUserPositions = async () => {
+    if (!currentUser) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await positionsApi.getAll({ user_id: currentUser.id });
+      
+      if (response.success) {
+        setUserPositions(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch positions:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Mock user bets data
-    const mockBets = [
-      {
-        id: 1,
-        marketQuestion: "Will Bitcoin reach $100,000 by end of 2025?",
-        outcome: "🚀 Yes",
-        betAmount: 500,
-        odds: 2.4,
-        potentialPayout: 1200,
-        status: "active",
-        placedAt: "2024-12-15T10:30:00Z",
-        deadline: "2025-12-31",
-        mascot: "🐕‍🦺"
-      },
-      {
-        id: 2,
-        marketQuestion: "Will Ethereum 2.0 complete by Q3 2025?",
-        outcome: "❌ No",
-        betAmount: 250,
-        odds: 3.2,
-        potentialPayout: 800,
-        status: "active",
-        placedAt: "2024-12-10T14:20:00Z",
-        deadline: "2025-09-30",
-        mascot: "🐕‍💻"
-      },
-      {
-        id: 3,
-        marketQuestion: "Will Dogecoin reach $1 in 2024?",
-        outcome: "🚀 Yes",
-        betAmount: 1000,
-        odds: 5.0,
-        potentialPayout: 5000,
-        status: "lost",
-        placedAt: "2024-01-15T09:15:00Z",
-        deadline: "2024-12-31",
-        resolvedAt: "2024-12-31T23:59:59Z",
-        mascot: "🐕‍💼"
-      },
-      {
-        id: 4,
-        marketQuestion: "Will Bitcoin dominance fall below 40% in 2024?",
-        outcome: "❌ No",
-        betAmount: 750,
-        odds: 1.8,
-        potentialPayout: 1350,
-        status: "won",
-        placedAt: "2024-06-01T16:45:00Z",
-        deadline: "2024-12-31",
-        resolvedAt: "2024-12-31T23:59:59Z",
-        mascot: "🐕‍🎓"
-      }
-    ];
+    if (currentUser) {
+      fetchUserPositions();
+    } else {
+      setUserPositions([]);
+      setLoading(false);
+    }
+  }, [currentUser]);
 
-    setUserBets(mockBets);
-  }, []);
-
-  const filteredBets = userBets.filter(bet => {
+  const filteredPositions = userPositions.filter(position => {
     switch (selectedTab) {
       case 'active':
-        return bet.status === 'active';
+        return position.status === 'open';
       case 'won':
-        return bet.status === 'won';
+        return position.status === 'won';
       case 'lost':
-        return bet.status === 'lost';
+        return position.status === 'lost';
       default:
         return true;
     }
@@ -77,7 +53,7 @@ function ActiveMarkets() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active':
+      case 'open':
         return 'text-blue-400 bg-blue-500/20 border-blue-400/30';
       case 'won':
         return 'text-green-400 bg-green-500/20 border-green-400/30';
@@ -90,7 +66,7 @@ function ActiveMarkets() {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'active':
+      case 'open':
         return '⏳';
       case 'won':
         return '🎉';
@@ -105,27 +81,27 @@ function ActiveMarkets() {
     return new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
-    }).format(amount);
+    }).format(parseFloat(amount || 0));
   };
 
   const calculateStats = () => {
-    const totalBets = userBets.length;
-    const wonBets = userBets.filter(bet => bet.status === 'won').length;
-    const lostBets = userBets.filter(bet => bet.status === 'lost').length;
-    const activeBets = userBets.filter(bet => bet.status === 'active').length;
+    const totalPositions = userPositions.length;
+    const wonPositions = userPositions.filter(p => p.status === 'won').length;
+    const lostPositions = userPositions.filter(p => p.status === 'lost').length;
+    const activePositions = userPositions.filter(p => p.status === 'open').length;
     
-    const totalWagered = userBets.reduce((sum, bet) => sum + bet.betAmount, 0);
-    const totalWon = userBets.filter(bet => bet.status === 'won').reduce((sum, bet) => sum + bet.potentialPayout, 0);
-    const totalLost = userBets.filter(bet => bet.status === 'lost').reduce((sum, bet) => sum + bet.betAmount, 0);
+    const totalWagered = userPositions.reduce((sum, p) => sum + parseFloat(p.total_cost || 0), 0);
+    const totalWon = userPositions.filter(p => p.status === 'won').reduce((sum, p) => sum + parseFloat(p.current_value || 0), 0);
+    const totalLost = userPositions.filter(p => p.status === 'lost').reduce((sum, p) => sum + parseFloat(p.total_cost || 0), 0);
     
-    const winRate = totalBets > 0 ? ((wonBets / (wonBets + lostBets)) * 100) : 0;
+    const winRate = totalPositions > 0 ? ((wonPositions / (wonPositions + lostPositions)) * 100) : 0;
     const roi = totalWagered > 0 ? (((totalWon - totalLost) / totalWagered) * 100) : 0;
 
     return {
-      totalBets,
-      wonBets,
-      lostBets,
-      activeBets,
+      totalPositions,
+      wonPositions,
+      lostPositions,
+      activePositions,
       totalWagered,
       totalWon,
       totalLost,
@@ -137,10 +113,82 @@ function ActiveMarkets() {
   const stats = calculateStats();
 
   const tabs = [
-    { id: 'active', label: 'Active', count: stats.activeBets, icon: '⚡', color: 'from-blue-500 to-purple-500' },
-    { id: 'won', label: 'Won', count: stats.wonBets, icon: '🏆', color: 'from-green-500 to-teal-500' },
-    { id: 'lost', label: 'Lost', count: stats.lostBets, icon: '💔', color: 'from-red-500 to-pink-500' },
+    { id: 'active', label: 'Active', count: stats.activePositions, icon: '⚡', color: 'from-blue-500 to-purple-500' },
+    { id: 'won', label: 'Won', count: stats.wonPositions, icon: '🏆', color: 'from-green-500 to-teal-500' },
+    { id: 'lost', label: 'Lost', count: stats.lostPositions, icon: '💔', color: 'from-red-500 to-pink-500' },
   ];
+
+  if (!currentUser) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-white mb-2 flex items-center justify-center">
+            <span className="mr-3 animate-bounce">📊</span>
+            My Portfolio
+            <span className="ml-3 animate-bounce delay-100">🐕‍💼</span>
+          </h2>
+          <div className="glass-morphism rounded-2xl p-16 border-2 border-gray-600/30 max-w-md mx-auto opacity-50">
+            <div className="text-6xl mb-6">🐕‍💼</div>
+            <p className="text-gray-400 mb-4 text-lg">Connect your wallet</p>
+            <p className="text-gray-500 text-sm">
+              Connect your wallet to view your prediction portfolio
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center">
+          <div className="relative mb-6">
+            <img 
+              src="assets/dog-avatar-gaming.webp" 
+              alt="Loading" 
+              className="w-16 h-16 mx-auto animate-bounce"
+            />
+            <div className="absolute -top-1 -right-1 animate-pulse">
+              <span className="text-xl">📊</span>
+            </div>
+          </div>
+          <p className="text-gray-300 animate-pulse">Loading your portfolio...</p>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="glass-morphism rounded-2xl p-6 animate-pulse border-2 border-gray-600/30">
+              <div className="w-16 h-8 bg-gray-600 rounded mb-2"></div>
+              <div className="w-24 h-4 bg-gray-700 rounded"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-16">
+        <div className="text-6xl mb-6">🐕‍💻</div>
+        <div className="glass-morphism rounded-2xl p-8 border-2 border-red-500/30 max-w-md mx-auto">
+          <p className="text-red-400 mb-6 text-lg flex items-center justify-center">
+            <span className="mr-2">⚠️</span>
+            {error}
+            <span className="ml-2">😢</span>
+          </p>
+          <button
+            onClick={fetchUserPositions}
+            className="px-6 py-3 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition-all duration-300 transform hover:scale-105 font-bold border-2 border-red-400/30"
+          >
+            <span className="mr-2">🔄</span>
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -162,7 +210,7 @@ function ActiveMarkets() {
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div className="glass-morphism rounded-2xl p-6 text-center border-2 border-purple-400/20 dog-card">
-          <div className="text-3xl font-bold text-white mb-2">{stats.totalBets}</div>
+          <div className="text-3xl font-bold text-white mb-2">{stats.totalPositions}</div>
           <p className="text-gray-400 text-sm flex items-center justify-center">
             <span className="mr-1">🎲</span>
             Total Bets
@@ -221,8 +269,8 @@ function ActiveMarkets() {
           ))}
         </div>
 
-        {/* Bets List */}
-        {filteredBets.length === 0 ? (
+        {/* Positions List */}
+        {filteredPositions.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-6">🐕‍💼</div>
             <p className="text-gray-400 mb-3 text-lg">No {selectedTab} predictions found</p>
@@ -234,24 +282,28 @@ function ActiveMarkets() {
           </div>
         ) : (
           <div className="space-y-6">
-            {filteredBets.map((bet) => (
-              <div key={bet.id} className="bg-gradient-to-r from-black/20 to-purple-900/20 rounded-2xl p-6 border-2 border-gray-700/30 hover:border-purple-400/50 transition-all duration-300 transform hover:scale-102 relative">
-                {/* Mascot */}
+            {filteredPositions.map((position) => (
+              <div key={position.id} className="bg-gradient-to-r from-black/20 to-purple-900/20 rounded-2xl p-6 border-2 border-gray-700/30 hover:border-purple-400/50 transition-all duration-300 transform hover:scale-102 relative">
+                {/* Status */}
                 <div className="absolute top-4 right-4 text-2xl animate-pulse">
-                  {bet.mascot}
+                  🐕‍🦺
                 </div>
                 
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1 pr-8">
-                    <h4 className="text-white font-bold mb-3 text-lg leading-tight">{bet.marketQuestion}</h4>
+                    <h4 className="text-white font-bold mb-3 text-lg leading-tight">
+                      {position.market?.title || 'Market Title'}
+                    </h4>
                     <div className="flex items-center space-x-4 text-sm mb-4">
                       <span className="text-gray-400 flex items-center">
                         <span className="mr-1">🎯</span>
                         Predicted:
                       </span>
-                      <span className="text-yellow-400 font-bold text-base">{bet.outcome}</span>
-                      <span className={`px-3 py-1 rounded-full text-sm font-bold border-2 ${getStatusColor(bet.status)}`}>
-                        {getStatusIcon(bet.status)} {bet.status.charAt(0).toUpperCase() + bet.status.slice(1)}
+                      <span className="text-yellow-400 font-bold text-base">
+                        {position.side === 'yes' ? '🚀 Yes' : '❌ No'}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold border-2 ${getStatusColor(position.status)}`}>
+                        {getStatusIcon(position.status)} {position.status.charAt(0).toUpperCase() + position.status.slice(1)}
                       </span>
                     </div>
                   </div>
@@ -260,40 +312,52 @@ function ActiveMarkets() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm mb-4">
                   <div className="text-center p-3 bg-black/20 rounded-xl border border-gray-600/30">
                     <p className="text-gray-400 mb-1 flex items-center justify-center">
-                      <span className="mr-1">💰</span>
-                      Bet Amount
-                    </p>
-                    <p className="text-white font-bold text-lg">{formatAmount(bet.betAmount)} $UDOG</p>
-                  </div>
-                  <div className="text-center p-3 bg-black/20 rounded-xl border border-gray-600/30">
-                    <p className="text-gray-400 mb-1 flex items-center justify-center">
                       <span className="mr-1">📊</span>
-                      Odds
+                      Shares
                     </p>
-                    <p className="text-yellow-400 font-bold text-lg">{bet.odds}x</p>
+                    <p className="text-white font-bold text-lg">{formatAmount(position.shares)}</p>
                   </div>
                   <div className="text-center p-3 bg-black/20 rounded-xl border border-gray-600/30">
                     <p className="text-gray-400 mb-1 flex items-center justify-center">
-                      <span className="mr-1">🎁</span>
-                      Potential Payout
+                      <span className="mr-1">💰</span>
+                      Avg Price
                     </p>
-                    <p className="text-green-400 font-bold text-lg">{formatAmount(bet.potentialPayout)} $UDOG</p>
+                    <p className="text-yellow-400 font-bold text-lg">${parseFloat(position.avg_price || 0).toFixed(2)}</p>
                   </div>
                   <div className="text-center p-3 bg-black/20 rounded-xl border border-gray-600/30">
                     <p className="text-gray-400 mb-1 flex items-center justify-center">
-                      <span className="mr-1">⏰</span>
-                      {bet.status === 'active' ? 'Deadline' : 'Resolved'}
+                      <span className="mr-1">💵</span>
+                      Total Cost
                     </p>
-                    <p className="text-white font-medium">
-                      {new Date(bet.status === 'active' ? bet.deadline : bet.resolvedAt).toLocaleDateString()}
+                    <p className="text-white font-bold text-lg">{formatAmount(position.total_cost)} $UDOG</p>
+                  </div>
+                  <div className="text-center p-3 bg-black/20 rounded-xl border border-gray-600/30">
+                    <p className="text-gray-400 mb-1 flex items-center justify-center">
+                      <span className="mr-1">📈</span>
+                      Current Value
                     </p>
+                    <p className="text-green-400 font-bold text-lg">{formatAmount(position.current_value)} $UDOG</p>
                   </div>
                 </div>
+
+                {position.unrealized_pnl && (
+                  <div className="mt-4 pt-4 border-t border-gray-600/50">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400 flex items-center">
+                        <span className="mr-1">📊</span>
+                        Unrealized P&L:
+                      </span>
+                      <span className={`font-bold ${parseFloat(position.unrealized_pnl) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {parseFloat(position.unrealized_pnl) >= 0 ? '+' : ''}{formatAmount(position.unrealized_pnl)} $UDOG
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-4 pt-4 border-t border-gray-600/50">
                   <p className="text-gray-500 text-xs flex items-center">
                     <span className="mr-1">📅</span>
-                    Placed on {new Date(bet.placedAt).toLocaleDateString()} at {new Date(bet.placedAt).toLocaleTimeString()}
+                    Position created: {new Date(position.created_at).toLocaleDateString()}
                   </p>
                 </div>
               </div>
